@@ -28,7 +28,7 @@ pipeline {
                     test -f "$WORKSPACE/backend/Dockerfile"
                     test -f "$WORKSPACE/frontend/react-learning/Dockerfile"
                     test -f "$WORKSPACE/nginx/default.conf"
-                    test -f "$DEPLOY_DIR/.env"
+                    test -r "$DEPLOY_DIR/.env"
 
                     rsync -a \
                       --exclude='.git/' \
@@ -43,40 +43,43 @@ pipeline {
 
         stage('Build Images') {
             steps {
-                dir('/opt/student-management-system') {
-                    sh 'docker compose build'
-                }
+                sh '''
+                    set -eu
+                    cd "$DEPLOY_DIR"
+                    docker compose build
+                '''
             }
         }
 
         stage('Deploy') {
             steps {
-                dir('/opt/student-management-system') {
-                    sh 'docker compose up -d --remove-orphans'
-                }
+                sh '''
+                    set -eu
+                    cd "$DEPLOY_DIR"
+                    docker compose up -d --remove-orphans
+                '''
             }
         }
 
         stage('Verify Deployment') {
             steps {
-                dir('/opt/student-management-system') {
-                    sh '''
-                        set -eu
+                sh '''
+                    set -eu
+                    cd "$DEPLOY_DIR"
 
-                        for i in $(seq 1 30); do
-                            if curl -fsS http://localhost/api/health; then
-                                echo
-                                echo "Deployment successful"
-                                exit 0
-                            fi
-                            sleep 2
-                        done
+                    for i in $(seq 1 30); do
+                        if curl -fsS http://localhost/api/health; then
+                            echo
+                            echo "Deployment successful"
+                            exit 0
+                        fi
+                        sleep 2
+                    done
 
-                        docker compose ps
-                        docker compose logs --tail=100
-                        exit 1
-                    '''
-                }
+                    docker compose ps
+                    docker compose logs --tail=100
+                    exit 1
+                '''
             }
         }
     }
